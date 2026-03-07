@@ -39,7 +39,12 @@ export const cloudAuthService = {
 
     const client = getSupabaseClient();
     const { data, error } = await client.auth.getUser();
-    if (error) throw error;
+    if (error) {
+      if (error.message.toLowerCase().includes('auth session missing')) {
+        return null;
+      }
+      throw error;
+    }
 
     return data.user;
   },
