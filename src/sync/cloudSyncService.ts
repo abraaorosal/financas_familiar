@@ -166,6 +166,7 @@ export const cloudSyncService = {
 
     if (
       shouldPullRemote &&
+      latestBefore &&
       JSON.stringify(latestBefore.payload.data) !== localBeforeFingerprint
     ) {
       await cloudBackupService.uploadBundle(localBeforeMerge, 'pre-merge-local');
