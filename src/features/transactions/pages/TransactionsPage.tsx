@@ -322,77 +322,143 @@ export const TransactionsPage = () => {
             message="Ajuste os filtros ou use o formulário rápido para criar um novo lançamento."
           />
         ) : (
-          <div className="overflow-x-auto">
-            <table className="min-w-full border-separate border-spacing-y-2 text-sm">
-              <thead>
-                <tr className="text-left text-slate-500">
-                  <th className="px-2">Data</th>
-                  <th className="px-2">Descrição</th>
-                  <th className="px-2">Pessoa</th>
-                  <th className="px-2">Categoria</th>
-                  <th className="px-2">Pagamento</th>
-                  <th className="px-2">Conta/Cartão</th>
-                  <th className="px-2">Valor</th>
-                  <th className="px-2">Ações</th>
-                </tr>
-              </thead>
-              <tbody>
-                {filteredTransactions.map((transaction) => {
-                  const entity = transaction.formaPagamento === 'cartao_credito'
+          <>
+            <div className="space-y-2 md:hidden">
+              {filteredTransactions.map((transaction) => {
+                const entity =
+                  transaction.formaPagamento === 'cartao_credito'
                     ? cardById.get(transaction.cardId ?? '')?.nome
                     : accountById.get(transaction.accountId ?? '')?.nome;
-                  return (
-                    <tr key={transaction.id} className="rounded-lg bg-slate-50">
-                      <td className="px-2 py-2">{format(parseISO(transaction.data), 'dd/MM/yyyy')}</td>
-                      <td className="px-2 py-2">
+
+                return (
+                  <article key={transaction.id} className="rounded-lg border border-slate-200 bg-slate-50 p-3">
+                    <div className="mb-2 flex items-start justify-between gap-2">
+                      <div>
                         <p className="font-semibold text-slate-800">{transaction.descricao}</p>
-                        <p className="text-xs text-slate-500">{transaction.natureza}</p>
-                      </td>
-                      <td className="px-2 py-2">{personById.get(transaction.pessoaId)?.nome}</td>
-                      <td className="px-2 py-2">{categoryById.get(transaction.categoriaId)?.nome}</td>
-                      <td className="px-2 py-2">{transaction.formaPagamento.replace('_', ' ')}</td>
-                      <td className="px-2 py-2">{entity ?? '-'}</td>
-                      <td
-                        className={`px-2 py-2 font-semibold ${
+                        <p className="text-xs text-slate-500">
+                          {format(parseISO(transaction.data), 'dd/MM/yyyy')} • {transaction.natureza}
+                        </p>
+                      </div>
+                      <p
+                        className={`text-sm font-semibold ${
                           transaction.tipo === 'ganho' ? 'text-emerald-700' : 'text-rose-700'
                         }`}
                       >
                         {transaction.tipo === 'ganho' ? '+' : '-'}
                         {formatCurrencyFromCents(transaction.valorCentavos)}
-                      </td>
-                      <td className="px-2 py-2">
-                        <div className="flex gap-2">
-                          <button
-                            type="button"
-                            className="rounded-md border border-slate-200 px-2 py-1 text-xs"
-                            onClick={() => openEditModal(transaction)}
-                          >
-                            Editar
-                          </button>
-                          <button
-                            type="button"
-                            className="rounded-md border border-slate-200 px-2 py-1 text-xs"
-                            onClick={async () => {
-                              await duplicateTransaction(transaction.id);
-                            }}
-                          >
-                            Duplicar
-                          </button>
-                          <button
-                            type="button"
-                            className="rounded-md border border-rose-200 bg-rose-50 px-2 py-1 text-xs text-rose-700"
-                            onClick={() => setDeletingTransaction(transaction)}
-                          >
-                            Excluir
-                          </button>
-                        </div>
-                      </td>
-                    </tr>
-                  );
-                })}
-              </tbody>
-            </table>
-          </div>
+                      </p>
+                    </div>
+
+                    <div className="space-y-1 text-xs text-slate-600">
+                      <p>Pessoa: {personById.get(transaction.pessoaId)?.nome ?? '-'}</p>
+                      <p>Categoria: {categoryById.get(transaction.categoriaId)?.nome ?? '-'}</p>
+                      <p>Pagamento: {transaction.formaPagamento.replace('_', ' ')}</p>
+                      <p>Conta/Cartão: {entity ?? '-'}</p>
+                    </div>
+
+                    <div className="mt-3 flex flex-wrap gap-2">
+                      <button
+                        type="button"
+                        className="rounded-md border border-slate-200 px-2 py-1 text-xs"
+                        onClick={() => openEditModal(transaction)}
+                      >
+                        Editar
+                      </button>
+                      <button
+                        type="button"
+                        className="rounded-md border border-slate-200 px-2 py-1 text-xs"
+                        onClick={async () => {
+                          await duplicateTransaction(transaction.id);
+                        }}
+                      >
+                        Duplicar
+                      </button>
+                      <button
+                        type="button"
+                        className="rounded-md border border-rose-200 bg-rose-50 px-2 py-1 text-xs text-rose-700"
+                        onClick={() => setDeletingTransaction(transaction)}
+                      >
+                        Excluir
+                      </button>
+                    </div>
+                  </article>
+                );
+              })}
+            </div>
+
+            <div className="hidden overflow-x-auto md:block">
+              <table className="min-w-full border-separate border-spacing-y-2 text-sm">
+                <thead>
+                  <tr className="text-left text-slate-500">
+                    <th className="px-2">Data</th>
+                    <th className="px-2">Descrição</th>
+                    <th className="px-2">Pessoa</th>
+                    <th className="px-2">Categoria</th>
+                    <th className="px-2">Pagamento</th>
+                    <th className="px-2">Conta/Cartão</th>
+                    <th className="px-2">Valor</th>
+                    <th className="px-2">Ações</th>
+                  </tr>
+                </thead>
+                <tbody>
+                  {filteredTransactions.map((transaction) => {
+                    const entity =
+                      transaction.formaPagamento === 'cartao_credito'
+                        ? cardById.get(transaction.cardId ?? '')?.nome
+                        : accountById.get(transaction.accountId ?? '')?.nome;
+                    return (
+                      <tr key={transaction.id} className="rounded-lg bg-slate-50">
+                        <td className="px-2 py-2">{format(parseISO(transaction.data), 'dd/MM/yyyy')}</td>
+                        <td className="px-2 py-2">
+                          <p className="font-semibold text-slate-800">{transaction.descricao}</p>
+                          <p className="text-xs text-slate-500">{transaction.natureza}</p>
+                        </td>
+                        <td className="px-2 py-2">{personById.get(transaction.pessoaId)?.nome}</td>
+                        <td className="px-2 py-2">{categoryById.get(transaction.categoriaId)?.nome}</td>
+                        <td className="px-2 py-2">{transaction.formaPagamento.replace('_', ' ')}</td>
+                        <td className="px-2 py-2">{entity ?? '-'}</td>
+                        <td
+                          className={`px-2 py-2 font-semibold ${
+                            transaction.tipo === 'ganho' ? 'text-emerald-700' : 'text-rose-700'
+                          }`}
+                        >
+                          {transaction.tipo === 'ganho' ? '+' : '-'}
+                          {formatCurrencyFromCents(transaction.valorCentavos)}
+                        </td>
+                        <td className="px-2 py-2">
+                          <div className="flex gap-2">
+                            <button
+                              type="button"
+                              className="rounded-md border border-slate-200 px-2 py-1 text-xs"
+                              onClick={() => openEditModal(transaction)}
+                            >
+                              Editar
+                            </button>
+                            <button
+                              type="button"
+                              className="rounded-md border border-slate-200 px-2 py-1 text-xs"
+                              onClick={async () => {
+                                await duplicateTransaction(transaction.id);
+                              }}
+                            >
+                              Duplicar
+                            </button>
+                            <button
+                              type="button"
+                              className="rounded-md border border-rose-200 bg-rose-50 px-2 py-1 text-xs text-rose-700"
+                              onClick={() => setDeletingTransaction(transaction)}
+                            >
+                              Excluir
+                            </button>
+                          </div>
+                        </td>
+                      </tr>
+                    );
+                  })}
+                </tbody>
+              </table>
+            </div>
+          </>
         )}
       </section>
 

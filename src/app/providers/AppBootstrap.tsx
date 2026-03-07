@@ -1,15 +1,18 @@
 import { useEffect, useState, type ReactNode } from 'react';
 import { initializeDatabase } from '@/db/bootstrap';
 import { useCloudAutoSync } from '@/sync/useCloudAutoSync';
+import { useCloudAuth } from '@/sync/CloudAuthContext';
 
 interface AppBootstrapProps {
   children: ReactNode;
 }
 
 export const AppBootstrap = ({ children }: AppBootstrapProps) => {
+  const { user } = useCloudAuth();
   const [status, setStatus] = useState<'loading' | 'ready' | 'error'>('loading');
   const [errorMessage, setErrorMessage] = useState<string>('');
-  useCloudAutoSync(status === 'ready');
+
+  useCloudAutoSync(status === 'ready', Boolean(user));
 
   useEffect(() => {
     initializeDatabase()

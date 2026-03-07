@@ -1,5 +1,4 @@
 import { useEffect, useRef, useState, type ChangeEventHandler } from 'react';
-import type { User } from '@supabase/supabase-js';
 import { format, parseISO } from 'date-fns';
 import { Download, RefreshCcw, Upload } from 'lucide-react';
 import { PageHeader } from '@/shared/components/PageHeader';
@@ -12,7 +11,7 @@ import { forceSeedDatabase } from '@/db/seeds';
 import type { Person } from '@/domain/models';
 import { PersonForm } from '../components/PersonForm';
 import { cloudAuthService, cloudBackupService, cloudSyncService } from '@/sync/cloudSyncService';
-import { isSupabaseConfigured } from '@/sync/supabaseClient';
+import { useCloudAuth } from '@/sync/CloudAuthContext';
 import type { CloudBackupRow } from '@/sync/types';
 
 export const SettingsPage = () => {
@@ -29,10 +28,8 @@ export const SettingsPage = () => {
   const [clearConfirmText, setClearConfirmText] = useState('');
   const [isClearDialogOpen, setIsClearDialogOpen] = useState(false);
 
-  const [cloudUser, setCloudUser] = useState<User | null>(null);
+  const { isConfigured, user: cloudUser, status: cloudStatus, signOut, refresh } = useCloudAuth();
   const [cloudBackups, setCloudBackups] = useState<CloudBackupRow[]>([]);
-  const [cloudEmail, setCloudEmail] = useState('');
-  const [cloudPassword, setCloudPassword] = useState('');
   const [cloudBusy, setCloudBusy] = useState(false);
 
   const lastImport = meta.find((item) => item.key === 'lastImportAt')?.value;
@@ -41,27 +38,31 @@ export const SettingsPage = () => {
   const lastCloudPullAt = meta.find((item) => item.key === 'lastCloudPullAt')?.value;
 
   const refreshCloudState = async () => {
-    if (!isSupabaseConfigured) return;
-
-    const user = await cloudAuthService.getCurrentUser();
-    setCloudUser(user);
-
-    if (user) {
-      const backups = await cloudBackupService.listBackups(20);
-      setCloudBackups(backups);
-    } else {
+    if (!isConfigured) {
       setCloudBackups([]);
+      return;
     }
+
+    const currentUser = await cloudAuthService.getCurrentUser();
+    if (!currentUser) {
+      setCloudBackups([]);
+      return;
+    }
+
+    const backups = await cloudBackupService.listBackups(20);
+    setCloudBackups(backups);
   };
 
   useEffect(() => {
     void refreshCloudState();
-  }, []);
+  }, [isConfigured, cloudUser?.id]);
 
   const runCloudAction = async (fn: () => Promise<void>) => {
     setCloudBusy(true);
+
     try {
       await fn();
+      await refresh();
       await refreshCloudState();
     } catch (error) {
       setMessage(error instanceof Error ? error.message : 'Falha na operação em nuvem.');
@@ -126,7 +127,10 @@ export const SettingsPage = () => {
         ) : (
           <ul className="space-y-2">
             {persons.map((person) => (
-              <li key={person.id} className="flex items-center justify-between rounded-lg border border-slate-200 p-3 text-sm">
+              <li
+                key={person.id}
+                className="flex flex-col gap-3 rounded-lg border border-slate-200 p-3 text-sm sm:flex-row sm:items-center sm:justify-between"
+              >
                 <div className="flex items-center gap-3">
                   <span className="inline-block h-4 w-4 rounded-full" style={{ backgroundColor: person.cor }} />
                   <div>
@@ -171,7 +175,7 @@ export const SettingsPage = () => {
       </section>
 
       <section className="mb-6 rounded-xl2 border border-slate-200 bg-white p-4 shadow-card">
-        <div className="mb-3 flex items-center justify-between">
+        <div className="mb-3 flex items-center justify-between gap-2">
           <h2 className="font-display text-lg font-semibold">Sincronização em nuvem (Supabase)</h2>
           <button
             type="button"
@@ -182,72 +186,24 @@ export const SettingsPage = () => {
                 setMessage('Estado da nuvem atualizado.');
               });
             }}
-            disabled={cloudBusy}
+            disabled={cloudBusy || cloudStatus === 'loading'}
           >
             <RefreshCcw size={13} /> Atualizar
           </button>
         </div>
 
         <p className="mb-3 text-xs text-slate-500">
-          Para compartilhar dados com sua esposa, use o mesmo login de nuvem nos dois aparelhos.
+          Login único para os dois aparelhos. Depois de lançar ou editar dados, a sincronização acontece automaticamente.
         </p>
 
-        {!isSupabaseConfigured ? (
+        {!isConfigured ? (
           <div className="rounded-lg border border-amber-200 bg-amber-50 p-3 text-sm text-amber-800">
-            Configure `VITE_SUPABASE_URL` e `VITE_SUPABASE_ANON_KEY` para habilitar sincronização entre dispositivos.
+            Configure <code>VITE_SUPABASE_URL</code> e <code>VITE_SUPABASE_ANON_KEY</code> para habilitar sincronização entre
+            dispositivos.
           </div>
         ) : !cloudUser ? (
-          <div className="grid gap-3 md:grid-cols-3">
-            <label className="text-sm md:col-span-1">
-              <span className="mb-1 block text-slate-600">E-mail</span>
-              <input
-                type="email"
-                className="w-full rounded-lg border border-slate-200 px-3 py-2"
-                value={cloudEmail}
-                onChange={(event) => setCloudEmail(event.target.value)}
-                placeholder="seuemail@provedor.com"
-              />
-            </label>
-
-            <label className="text-sm md:col-span-1">
-              <span className="mb-1 block text-slate-600">Senha</span>
-              <input
-                type="password"
-                className="w-full rounded-lg border border-slate-200 px-3 py-2"
-                value={cloudPassword}
-                onChange={(event) => setCloudPassword(event.target.value)}
-                placeholder="******"
-              />
-            </label>
-
-            <div className="flex items-end gap-2 md:col-span-1">
-              <button
-                type="button"
-                className="rounded-lg border border-slate-300 px-3 py-2 text-sm font-semibold text-slate-700"
-                disabled={cloudBusy}
-                onClick={() => {
-                  void runCloudAction(async () => {
-                    await cloudAuthService.signUp(cloudEmail, cloudPassword);
-                    setMessage('Cadastro concluído. Confirme seu e-mail no Supabase se necessário e faça login.');
-                  });
-                }}
-              >
-                Cadastrar
-              </button>
-              <button
-                type="button"
-                className="rounded-lg bg-primary-600 px-3 py-2 text-sm font-semibold text-white"
-                disabled={cloudBusy}
-                onClick={() => {
-                  void runCloudAction(async () => {
-                    await cloudAuthService.signIn(cloudEmail, cloudPassword);
-                    setMessage('Login em nuvem realizado com sucesso.');
-                  });
-                }}
-              >
-                Entrar
-              </button>
-            </div>
+          <div className="rounded-lg border border-amber-200 bg-amber-50 p-3 text-sm text-amber-800">
+            Você está sem sessão ativa em nuvem. Volte para a tela de login e entre novamente.
           </div>
         ) : (
           <>
@@ -308,9 +264,7 @@ export const SettingsPage = () => {
                 disabled={cloudBusy}
                 onClick={() => {
                   void runCloudAction(async () => {
-                    await cloudAuthService.signOut();
-                    setCloudEmail('');
-                    setCloudPassword('');
+                    await signOut();
                     setMessage('Sessão de nuvem encerrada.');
                   });
                 }}
@@ -332,7 +286,10 @@ export const SettingsPage = () => {
             ) : (
               <ul className="space-y-2">
                 {cloudBackups.map((backup) => (
-                  <li key={backup.id} className="flex flex-wrap items-center justify-between gap-2 rounded-lg border border-slate-200 p-3 text-sm">
+                  <li
+                    key={backup.id}
+                    className="flex flex-col gap-2 rounded-lg border border-slate-200 p-3 text-sm sm:flex-row sm:items-center sm:justify-between"
+                  >
                     <div>
                       <p className="font-semibold text-slate-800">{backup.label}</p>
                       <p className="text-xs text-slate-500">
