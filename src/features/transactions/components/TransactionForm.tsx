@@ -118,7 +118,7 @@ export const TransactionForm = ({
     }
   });
 
-  const fieldClassName = 'w-full rounded-lg border border-slate-200 px-3 py-2 text-sm';
+  const fieldClassName = 'min-w-0 w-full rounded-lg border border-slate-200 px-3 py-2 text-sm';
 
   return (
     <form className="space-y-3" onSubmit={submit}>

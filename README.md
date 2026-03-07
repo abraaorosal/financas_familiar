@@ -1,4 +1,4 @@
-# Finanças da Casa
+# HenriFinance
 
 Aplicação web de finanças pessoais para uso diário de uma família com 2 pessoas, com foco em rapidez de lançamento, análise, segurança de dados e sincronização entre dispositivos.
 

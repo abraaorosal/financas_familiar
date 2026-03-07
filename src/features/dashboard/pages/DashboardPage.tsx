@@ -39,7 +39,7 @@ export const DashboardPage = () => {
         description="Resumo mensal da casa com filtros rápidos para decisões diárias."
       />
 
-      <section className="mb-6 grid gap-3 rounded-xl2 border border-slate-200 bg-white/85 p-4 shadow-card md:grid-cols-4">
+      <section className="mb-6 grid gap-3 rounded-xl2 border border-slate-200 bg-white/85 p-4 shadow-card md:grid-cols-4 [&>*]:min-w-0">
         <label className="text-sm">
           <span className="mb-1 block text-slate-600">Mês</span>
           <input

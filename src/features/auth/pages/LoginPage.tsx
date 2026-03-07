@@ -76,7 +76,7 @@ export const LoginPage = () => {
           </span>
           <div>
             <h1 className="font-display text-2xl font-bold text-text">Entrar</h1>
-            <p className="text-sm text-slate-600">Finanças da Casa</p>
+            <p className="text-sm text-slate-600">HenriFinance</p>
           </div>
         </div>
 

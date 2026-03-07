@@ -34,6 +34,14 @@ select,
 textarea,
 button {
   font: inherit;
+  max-width: 100%;
+  min-width: 0;
+}
+
+input[type='date'],
+input[type='month'] {
+  width: 100%;
+  min-width: 0;
 }
 
 button {

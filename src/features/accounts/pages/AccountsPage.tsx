@@ -133,7 +133,7 @@ export const AccountsPage = () => {
       <section className="mb-6 rounded-xl2 border border-slate-200 bg-white p-4 shadow-card">
         <h2 className="mb-3 font-display text-lg font-semibold">Transferência entre contas</h2>
 
-        <div className="grid gap-3 md:grid-cols-3">
+        <div className="grid gap-3 md:grid-cols-3 [&>*]:min-w-0">
           <label className="text-sm">
             <span className="mb-1 block text-slate-600">Data</span>
             <input

@@ -147,7 +147,7 @@ export const TransactionsPage = () => {
         />
       </section>
 
-      <section className="mb-6 grid gap-3 rounded-xl2 border border-slate-200 bg-white p-4 shadow-card md:grid-cols-4 xl:grid-cols-10">
+      <section className="mb-6 grid gap-3 rounded-xl2 border border-slate-200 bg-white p-4 shadow-card md:grid-cols-4 xl:grid-cols-10 [&>*]:min-w-0">
         <label className="text-sm">
           <span className="mb-1 block text-slate-600">Mês</span>
           <input
@@ -311,7 +311,7 @@ export const TransactionsPage = () => {
       </section>
 
       <section className="mb-6 rounded-xl2 border border-slate-200 bg-white p-4 shadow-card">
-        <div className="mb-3 flex items-center justify-between">
+        <div className="mb-3 flex flex-col gap-1 sm:flex-row sm:items-center sm:justify-between">
           <h2 className="font-display text-lg font-semibold">Lista de transações</h2>
           <p className="text-sm text-slate-600">Saldo filtrado: {formatCurrencyFromCents(totalFiltered)}</p>
         </div>

@@ -58,7 +58,7 @@ export const AppLayout = () => {
     <div className="mx-auto flex min-h-screen w-full max-w-[1500px] px-3 pb-[calc(6.5rem+env(safe-area-inset-bottom))] pt-4 md:px-6 md:pb-6">
       <aside className="sticky top-4 hidden h-[calc(100vh-2rem)] w-64 shrink-0 rounded-xl2 border border-slate-200 bg-white/80 p-4 shadow-card backdrop-blur md:flex md:flex-col">
         <div className="mb-5">
-          <p className="font-display text-lg font-bold text-primary-700">Finanças da Casa</p>
+          <p className="font-display text-lg font-bold text-primary-700">HenriFinance</p>
           <p className="text-xs text-slate-500">Controle financeiro da família</p>
         </div>
 
