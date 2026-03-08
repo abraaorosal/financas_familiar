@@ -98,7 +98,7 @@ export const AccountsPage = () => {
                       {item.account.pessoaId ? personById.get(item.account.pessoaId)?.nome : 'Compartilhada'}
                     </p>
                   </div>
-                  <div className="flex gap-2">
+                  <div className="flex flex-wrap gap-2">
                     <button
                       type="button"
                       className="rounded-md border border-slate-200 px-2 py-1 text-xs"

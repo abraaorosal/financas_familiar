@@ -10,9 +10,8 @@ import { clearAllData, exportDataBundle, importDataBundle, removePerson, upsertP
 import { forceSeedDatabase } from '@/db/seeds';
 import type { Person } from '@/domain/models';
 import { PersonForm } from '../components/PersonForm';
-import { cloudAuthService, cloudBackupService, cloudSyncService } from '@/sync/cloudSyncService';
+import { cloudSyncService } from '@/sync/cloudSyncService';
 import { useCloudAuth } from '@/sync/CloudAuthContext';
-import type { CloudBackupRow } from '@/sync/types';
 
 export const SettingsPage = () => {
   const persons = usePersons();
@@ -29,32 +28,15 @@ export const SettingsPage = () => {
   const [isClearDialogOpen, setIsClearDialogOpen] = useState(false);
 
   const { isConfigured, user: cloudUser, status: cloudStatus, signOut, refresh } = useCloudAuth();
-  const [cloudBackups, setCloudBackups] = useState<CloudBackupRow[]>([]);
   const [cloudBusy, setCloudBusy] = useState(false);
 
   const lastImport = meta.find((item) => item.key === 'lastImportAt')?.value;
   const lastCloudSyncAt = meta.find((item) => item.key === 'lastCloudSyncAt')?.value;
   const lastCloudPushAt = meta.find((item) => item.key === 'lastCloudPushAt')?.value;
-  const lastCloudPullAt = meta.find((item) => item.key === 'lastCloudPullAt')?.value;
-
-  const refreshCloudState = async () => {
-    if (!isConfigured) {
-      setCloudBackups([]);
-      return;
-    }
-
-    const currentUser = await cloudAuthService.getCurrentUser();
-    if (!currentUser) {
-      setCloudBackups([]);
-      return;
-    }
-
-    const backups = await cloudBackupService.listBackups(20);
-    setCloudBackups(backups);
-  };
 
   useEffect(() => {
-    void refreshCloudState();
+    if (!isConfigured) return;
+    void refresh();
   }, [isConfigured, cloudUser?.id]);
 
   const runCloudAction = async (fn: () => Promise<void>) => {
@@ -63,7 +45,6 @@ export const SettingsPage = () => {
     try {
       await fn();
       await refresh();
-      await refreshCloudState();
     } catch (error) {
       setMessage(error instanceof Error ? error.message : 'Falha na operação em nuvem.');
     } finally {
@@ -138,7 +119,7 @@ export const SettingsPage = () => {
                     <p className="text-xs text-slate-500">{person.ativo ? 'Ativa' : 'Inativa'}</p>
                   </div>
                 </div>
-                <div className="flex gap-2">
+                <div className="flex flex-wrap gap-2">
                   <button
                     type="button"
                     className="rounded-md border border-slate-200 px-2 py-1 text-xs"
@@ -175,14 +156,14 @@ export const SettingsPage = () => {
       </section>
 
       <section className="mb-6 rounded-xl2 border border-slate-200 bg-white p-4 shadow-card">
-        <div className="mb-3 flex items-center justify-between gap-2">
-          <h2 className="font-display text-lg font-semibold">Sincronização em nuvem (Supabase)</h2>
+        <div className="mb-3 flex flex-col gap-2 sm:flex-row sm:items-center sm:justify-between">
+          <h2 className="font-display text-lg font-semibold">Sincronização automática (Supabase)</h2>
           <button
             type="button"
             className="inline-flex items-center gap-1 rounded-md border border-slate-200 px-2 py-1 text-xs"
             onClick={() => {
               void runCloudAction(async () => {
-                await refreshCloudState();
+                await cloudSyncService.syncNow();
                 setMessage('Estado da nuvem atualizado.');
               });
             }}
@@ -208,59 +189,13 @@ export const SettingsPage = () => {
         ) : (
           <>
             <div className="mb-3 rounded-lg border border-emerald-200 bg-emerald-50 p-3 text-sm text-emerald-800">
-              Conectado como <strong>{cloudUser.email}</strong>
+              Conectado como <strong className="break-all">{cloudUser.email}</strong>
             </div>
 
-            <div className="mb-3 flex flex-wrap gap-2">
+            <div className="mb-3">
               <button
                 type="button"
-                className="rounded-lg bg-primary-600 px-3 py-2 text-sm font-semibold text-white"
-                disabled={cloudBusy}
-                onClick={() => {
-                  void runCloudAction(async () => {
-                    const result = await cloudSyncService.syncNow();
-                    setMessage(
-                      result.pushed
-                        ? 'Sincronização concluída (merge local + upload versionado).'
-                        : 'Sincronização concluída. Nenhuma alteração nova para enviar.'
-                    );
-                  });
-                }}
-              >
-                Sincronizar agora
-              </button>
-
-              <button
-                type="button"
-                className="rounded-lg border border-slate-300 px-3 py-2 text-sm font-semibold text-slate-700"
-                disabled={cloudBusy}
-                onClick={() => {
-                  void runCloudAction(async () => {
-                    await cloudBackupService.uploadBackup('manual-push');
-                    setMessage('Backup enviado para nuvem.');
-                  });
-                }}
-              >
-                Enviar backup
-              </button>
-
-              <button
-                type="button"
-                className="rounded-lg border border-slate-300 px-3 py-2 text-sm font-semibold text-slate-700"
-                disabled={cloudBusy}
-                onClick={() => {
-                  void runCloudAction(async () => {
-                    const pulled = await cloudBackupService.pullLatest('merge');
-                    setMessage(pulled ? 'Backup mais recente importado com merge.' : 'Nenhum backup remoto encontrado.');
-                  });
-                }}
-              >
-                Baixar backup mais recente
-              </button>
-
-              <button
-                type="button"
-                className="rounded-lg border border-slate-300 px-3 py-2 text-sm font-semibold text-slate-700"
+                className="w-full rounded-lg border border-rose-300 bg-rose-50 px-3 py-2 text-sm font-semibold text-rose-700 sm:w-auto"
                 disabled={cloudBusy}
                 onClick={() => {
                   void runCloudAction(async () => {
@@ -274,60 +209,10 @@ export const SettingsPage = () => {
             </div>
 
             <div className="mb-3 rounded-lg bg-slate-50 p-3 text-xs text-slate-600">
+              <p>Status: sincronização automática ativa</p>
               <p>Última sincronização: {lastCloudSyncAt ? format(parseISO(lastCloudSyncAt), 'dd/MM/yyyy HH:mm') : 'nunca'}</p>
-              <p>Último envio: {lastCloudPushAt ? format(parseISO(lastCloudPushAt), 'dd/MM/yyyy HH:mm') : 'nunca'}</p>
-              <p>Último download: {lastCloudPullAt ? format(parseISO(lastCloudPullAt), 'dd/MM/yyyy HH:mm') : 'nunca'}</p>
+              <p>Último backup na nuvem: {lastCloudPushAt ? format(parseISO(lastCloudPushAt), 'dd/MM/yyyy HH:mm') : 'nunca'}</p>
             </div>
-
-            <h3 className="mb-2 font-display text-base font-semibold">Histórico de backups na nuvem</h3>
-
-            {cloudBackups.length === 0 ? (
-              <EmptyState title="Sem backups remotos" message="Clique em 'Sincronizar agora' para criar o primeiro backup em nuvem." />
-            ) : (
-              <ul className="space-y-2">
-                {cloudBackups.map((backup) => (
-                  <li
-                    key={backup.id}
-                    className="flex flex-col gap-2 rounded-lg border border-slate-200 p-3 text-sm sm:flex-row sm:items-center sm:justify-between"
-                  >
-                    <div>
-                      <p className="font-semibold text-slate-800">{backup.label}</p>
-                      <p className="text-xs text-slate-500">
-                        {format(parseISO(backup.created_at), 'dd/MM/yyyy HH:mm')} • Dispositivo {backup.device_id.slice(0, 8)}
-                      </p>
-                    </div>
-                    <div className="flex gap-2">
-                      <button
-                        type="button"
-                        className="rounded-md border border-slate-200 px-2 py-1 text-xs"
-                        disabled={cloudBusy}
-                        onClick={() => {
-                          void runCloudAction(async () => {
-                            await importDataBundle(backup.payload, 'merge');
-                            setMessage('Snapshot importado com merge no banco local.');
-                          });
-                        }}
-                      >
-                        Importar (merge)
-                      </button>
-                      <button
-                        type="button"
-                        className="rounded-md border border-rose-200 bg-rose-50 px-2 py-1 text-xs text-rose-700"
-                        disabled={cloudBusy}
-                        onClick={() => {
-                          void runCloudAction(async () => {
-                            await cloudBackupService.restoreBackup(backup.id, 'overwrite');
-                            setMessage('Snapshot restaurado com sobrescrita e novo backup de restauração criado.');
-                          });
-                        }}
-                      >
-                        Restaurar
-                      </button>
-                    </div>
-                  </li>
-                ))}
-              </ul>
-            )}
           </>
         )}
       </section>
@@ -338,7 +223,7 @@ export const SettingsPage = () => {
         <div className="flex flex-wrap gap-2">
           <button
             type="button"
-            className="inline-flex items-center gap-2 rounded-lg bg-primary-600 px-3 py-2 text-sm font-semibold text-white"
+            className="inline-flex w-full items-center justify-center gap-2 rounded-lg bg-primary-600 px-3 py-2 text-sm font-semibold text-white sm:w-auto"
             onClick={triggerExport}
           >
             <Download size={16} /> Exportar JSON
@@ -346,7 +231,7 @@ export const SettingsPage = () => {
 
           <button
             type="button"
-            className="inline-flex items-center gap-2 rounded-lg border border-slate-300 px-3 py-2 text-sm font-semibold text-slate-700"
+            className="inline-flex w-full items-center justify-center gap-2 rounded-lg border border-slate-300 px-3 py-2 text-sm font-semibold text-slate-700 sm:w-auto"
             onClick={triggerImport}
           >
             <Upload size={16} /> Importar JSON
@@ -392,24 +277,26 @@ export const SettingsPage = () => {
           Limpar os dados remove todo o histórico local. Faça backup local e em nuvem antes.
         </p>
 
-        <button
-          type="button"
-          className="rounded-lg bg-rose-600 px-3 py-2 text-sm font-semibold text-white"
-          onClick={() => setIsClearDialogOpen(true)}
-        >
-          Limpar todos os dados
-        </button>
+        <div className="flex flex-col gap-2 sm:flex-row">
+          <button
+            type="button"
+            className="w-full rounded-lg bg-rose-600 px-3 py-2 text-sm font-semibold text-white sm:w-auto"
+            onClick={() => setIsClearDialogOpen(true)}
+          >
+            Limpar todos os dados
+          </button>
 
-        <button
-          type="button"
-          className="ml-2 rounded-lg border border-amber-300 bg-amber-100 px-3 py-2 text-sm font-semibold text-amber-800"
-          onClick={async () => {
-            await forceSeedDatabase();
-            setMessage('Seed de exemplo aplicada.');
-          }}
-        >
-          Reaplicar seed de exemplo
-        </button>
+          <button
+            type="button"
+            className="w-full rounded-lg border border-amber-300 bg-amber-100 px-3 py-2 text-sm font-semibold text-amber-800 sm:w-auto"
+            onClick={async () => {
+              await forceSeedDatabase();
+              setMessage('Seed de exemplo aplicada.');
+            }}
+          >
+            Reaplicar seed de exemplo
+          </button>
+        </div>
       </section>
 
       {message ? <p className="rounded-lg bg-slate-900 px-3 py-2 text-sm text-white">{message}</p> : null}

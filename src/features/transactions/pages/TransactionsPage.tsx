@@ -501,9 +501,12 @@ export const TransactionsPage = () => {
         {monthBudgets.length > 0 ? (
           <ul className="mt-4 space-y-2">
             {monthBudgets.map((budget) => (
-              <li key={budget.id} className="flex items-center justify-between rounded-lg border border-slate-200 p-3 text-sm">
-                <span>{categoryById.get(budget.categoriaId)?.nome ?? 'Categoria removida'}</span>
-                <div className="flex items-center gap-2">
+              <li
+                key={budget.id}
+                className="flex flex-col gap-2 rounded-lg border border-slate-200 p-3 text-sm sm:flex-row sm:items-center sm:justify-between"
+              >
+                <span className="min-w-0 break-words">{categoryById.get(budget.categoriaId)?.nome ?? 'Categoria removida'}</span>
+                <div className="flex flex-wrap items-center gap-2">
                   <span className="font-semibold">{formatCurrencyFromCents(budget.limiteCentavos)}</span>
                   <button
                     type="button"

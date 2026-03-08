@@ -4,6 +4,7 @@ import {
   CreditCard,
   FolderKanban,
   Home,
+  LogOut,
   Menu,
   ReceiptText,
   Settings,
@@ -11,6 +12,7 @@ import {
   X,
 } from 'lucide-react';
 import { Link, NavLink, Outlet, useLocation } from 'react-router-dom';
+import { useCloudAuth } from '@/sync/CloudAuthContext';
 
 const desktopNavigation = [
   { to: '/', label: 'Dashboard', icon: Home },
@@ -42,8 +44,10 @@ const linkClass = ({ isActive }: { isActive: boolean }) =>
   ].join(' ');
 
 export const AppLayout = () => {
+  const { isConfigured, user, signOut } = useCloudAuth();
   const location = useLocation();
   const [isMoreOpen, setIsMoreOpen] = useState(false);
+  const [isSigningOut, setIsSigningOut] = useState(false);
 
   const isMobileMoreActive = useMemo(
     () => mobileSecondaryNavigation.some((item) => item.to === location.pathname),
@@ -53,6 +57,17 @@ export const AppLayout = () => {
   useEffect(() => {
     setIsMoreOpen(false);
   }, [location.pathname]);
+
+  const handleSignOut = async () => {
+    if (!isConfigured) return;
+
+    setIsSigningOut(true);
+    try {
+      await signOut();
+    } finally {
+      setIsSigningOut(false);
+    }
+  };
 
   return (
     <div className="mx-auto flex min-h-screen w-full max-w-[1500px] px-3 pb-[calc(6.5rem+env(safe-area-inset-bottom))] pt-4 md:px-6 md:pb-6">
@@ -76,6 +91,23 @@ export const AppLayout = () => {
       </aside>
 
       <main className="w-full min-w-0 px-0 md:px-6">
+        {isConfigured && user ? (
+          <div className="mb-4 flex flex-col gap-2 rounded-xl2 border border-slate-200 bg-white/90 p-3 shadow-card sm:flex-row sm:items-center sm:justify-between">
+            <p className="min-w-0 text-xs text-slate-600">
+              Conectado: <span className="break-all font-semibold text-slate-800">{user.email}</span>
+            </p>
+            <button
+              type="button"
+              className="inline-flex w-full items-center justify-center gap-1 rounded-lg border border-rose-300 bg-rose-50 px-3 py-2 text-sm font-semibold text-rose-700 sm:w-auto"
+              onClick={() => {
+                void handleSignOut();
+              }}
+              disabled={isSigningOut}
+            >
+              <LogOut size={15} /> {isSigningOut ? 'Saindo...' : 'Sair'}
+            </button>
+          </div>
+        ) : null}
         <Outlet />
       </main>
 

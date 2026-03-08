@@ -157,14 +157,14 @@ export const CardsPage = () => {
                 <ul className="space-y-2">
                   {cycleSummary.transacoesCiclo.map((transaction) => (
                     <li key={transaction.id} className="rounded-lg border border-slate-200 p-3 text-sm">
-                      <div className="flex items-center justify-between gap-3">
-                        <div>
+                      <div className="flex items-start justify-between gap-3">
+                        <div className="min-w-0">
                           <p className="font-semibold text-slate-800">{transaction.descricao}</p>
                           <p className="text-xs text-slate-500">
                             {format(parseISO(transaction.data), 'dd/MM/yyyy')} • Fatura {mapTransactionToInvoiceMonth(transaction.data, selectedCard)}
                           </p>
                         </div>
-                        <p className="font-semibold text-rose-700">{formatCurrencyFromCents(transaction.valorCentavos)}</p>
+                        <p className="shrink-0 font-semibold text-rose-700">{formatCurrencyFromCents(transaction.valorCentavos)}</p>
                       </div>
                     </li>
                   ))}
