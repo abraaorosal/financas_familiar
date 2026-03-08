@@ -1,10 +1,11 @@
-import { useMemo } from 'react';
+import { useEffect, useMemo } from 'react';
 import { Controller, useForm } from 'react-hook-form';
 import { zodResolver } from '@hookform/resolvers/zod';
 import type { Account, Card, Category, Person, Transaction } from '@/domain/models';
 import { transactionSchema, type TransactionInput } from '@/domain/validators';
 import { CurrencyInput } from '@/shared/components/CurrencyInput';
 import { toISODateOnly } from '@/shared/utils/date';
+import { Link } from 'react-router-dom';
 
 export interface TransactionFormValues {
   data: string;
@@ -76,6 +77,9 @@ export const TransactionForm = ({
     register,
     watch,
     control,
+    setValue,
+    getValues,
+    setError,
     handleSubmit,
     reset,
     formState: { errors, isSubmitting },
@@ -87,10 +91,33 @@ export const TransactionForm = ({
   const paymentMethod = watch('formaPagamento');
   const transactionType = watch('tipo');
   const isRecurring = watch('recorrente');
+  const activeCards = useMemo(() => cards.filter((card) => card.ativo), [cards]);
+  const noCardsAvailable = paymentMethod === 'cartao_credito' && activeCards.length === 0;
 
   const availableCategories = useMemo(() => {
     return categories.filter((category) => category.tipo === transactionType);
   }, [categories, transactionType]);
+
+  useEffect(() => {
+    if (paymentMethod === 'cartao_credito') {
+      const currentCardId = getValues('cardId');
+      const hasCurrentCard = currentCardId ? activeCards.some((card) => card.id === currentCardId) : false;
+
+      if (!hasCurrentCard) {
+        setValue('cardId', activeCards[0]?.id, { shouldValidate: true });
+      }
+      setValue('accountId', undefined, { shouldValidate: false });
+      return;
+    }
+
+    const currentAccountId = getValues('accountId');
+    const hasCurrentAccount = currentAccountId ? accounts.some((account) => account.id === currentAccountId) : false;
+
+    if (!hasCurrentAccount) {
+      setValue('accountId', accounts[0]?.id, { shouldValidate: true });
+    }
+    setValue('cardId', undefined, { shouldValidate: false });
+  }, [paymentMethod, activeCards, accounts, getValues, setValue]);
 
   const submit = handleSubmit(async (values) => {
     const payload: TransactionInput = {
@@ -112,6 +139,14 @@ export const TransactionForm = ({
       recorrencia: values.recorrente ? values.recorrencia : undefined,
       tags: parseTags(values.tags),
     };
+
+    if (noCardsAvailable) {
+      setError('cardId', {
+        type: 'manual',
+        message: 'Cadastre um cartão ativo para lançar no crédito.',
+      });
+      return;
+    }
 
     await onSubmit(payload);
 
@@ -173,7 +208,7 @@ export const TransactionForm = ({
         </label>
       </div>
 
-      <div className={`grid gap-3 ${compact ? 'md:grid-cols-4' : 'md:grid-cols-2'}`}>
+      <div className={`grid gap-3 ${compact ? 'md:grid-cols-3' : 'md:grid-cols-2 lg:grid-cols-3'}`}>
         <label className="text-sm">
           <span className="mb-1 block text-slate-600">Descrição</span>
           <input type="text" className={fieldClassName} placeholder="Ex: Mercado" {...register('descricao')} />
@@ -192,32 +227,39 @@ export const TransactionForm = ({
           </select>
         </label>
 
-        <label className="text-sm">
-          <span className="mb-1 block text-slate-600">Conta</span>
-          <select className={fieldClassName} {...register('accountId')} disabled={paymentMethod === 'cartao_credito'}>
-            <option value="">Selecione</option>
-            {accounts.map((account) => (
-              <option key={account.id} value={account.id}>
-                {account.nome}
-              </option>
-            ))}
-          </select>
-        </label>
-
-        <label className="text-sm">
-          <span className="mb-1 block text-slate-600">Cartão</span>
-          <select className={fieldClassName} {...register('cardId')} disabled={paymentMethod !== 'cartao_credito'}>
-            <option value="">Selecione</option>
-            {cards.map((card) => (
-              <option key={card.id} value={card.id}>
-                {card.nome}
-              </option>
-            ))}
-          </select>
-        </label>
+        {paymentMethod === 'cartao_credito' ? (
+          <label className="text-sm">
+            <span className="mb-1 block text-slate-600">Cartão</span>
+            <select className={fieldClassName} {...register('cardId')}>
+              <option value="">Selecione</option>
+              {activeCards.map((card) => (
+                <option key={card.id} value={card.id}>
+                  {card.nome}
+                </option>
+              ))}
+            </select>
+            {activeCards.length === 0 ? (
+              <span className="mt-1 block text-xs text-amber-700">
+                Nenhum cartão ativo. <Link className="font-semibold underline" to="/cartoes">Cadastre em Cartões</Link>.
+              </span>
+            ) : null}
+          </label>
+        ) : (
+          <label className="text-sm">
+            <span className="mb-1 block text-slate-600">Conta</span>
+            <select className={fieldClassName} {...register('accountId')}>
+              <option value="">Selecione</option>
+              {accounts.map((account) => (
+                <option key={account.id} value={account.id}>
+                  {account.nome}
+                </option>
+              ))}
+            </select>
+          </label>
+        )}
       </div>
 
-      <div className={`grid gap-3 ${compact ? 'md:grid-cols-4' : 'md:grid-cols-2'}`}>
+      <div className={`grid gap-3 ${compact ? 'md:grid-cols-2' : 'md:grid-cols-2 lg:grid-cols-4'}`}>
         <div className="text-sm">
           <span className="mb-1 block text-slate-600">Valor</span>
           <Controller
@@ -234,43 +276,48 @@ export const TransactionForm = ({
           {errors.valorCentavos ? <span className="text-xs text-rose-600">{errors.valorCentavos.message}</span> : null}
         </div>
 
-        <label className="text-sm">
-          <span className="mb-1 block text-slate-600">Parcelas</span>
-          <input
-            type="number"
-            min={1}
-            max={48}
-            className={fieldClassName}
-            placeholder="1"
-            {...register('parcelaTotal', {
-              setValueAs: (value: string) => (value === '' ? undefined : Number(value)),
-            })}
-            disabled={paymentMethod !== 'cartao_credito'}
-          />
-        </label>
+        {paymentMethod === 'cartao_credito' ? (
+          <label className="text-sm">
+            <span className="mb-1 block text-slate-600">Parcelas</span>
+            <input
+              type="number"
+              min={1}
+              max={48}
+              className={fieldClassName}
+              placeholder="1"
+              {...register('parcelaTotal', {
+                setValueAs: (value: string) => (value === '' ? undefined : Number(value)),
+              })}
+            />
+          </label>
+        ) : null}
 
-        <label className="text-sm">
-          <span className="mb-1 block text-slate-600">Recorrente?</span>
-          <select
-            className={fieldClassName}
-            {...register('recorrente', {
-              setValueAs: (value: string) => value === 'true',
-            })}
-          >
-            <option value="false">Não</option>
-            <option value="true">Sim</option>
-          </select>
-        </label>
+        {!compact ? (
+          <>
+            <label className="text-sm">
+              <span className="mb-1 block text-slate-600">Recorrente?</span>
+              <select
+                className={fieldClassName}
+                {...register('recorrente', {
+                  setValueAs: (value: string) => value === 'true',
+                })}
+              >
+                <option value="false">Não</option>
+                <option value="true">Sim</option>
+              </select>
+            </label>
 
-        <label className="text-sm">
-          <span className="mb-1 block text-slate-600">Frequência</span>
-          <select className={fieldClassName} {...register('recorrencia')} disabled={!isRecurring}>
-            <option value="">Selecione</option>
-            <option value="mensal">Mensal</option>
-            <option value="semanal">Semanal</option>
-            <option value="anual">Anual</option>
-          </select>
-        </label>
+            <label className="text-sm">
+              <span className="mb-1 block text-slate-600">Frequência</span>
+              <select className={fieldClassName} {...register('recorrencia')} disabled={!isRecurring}>
+                <option value="">Selecione</option>
+                <option value="mensal">Mensal</option>
+                <option value="semanal">Semanal</option>
+                <option value="anual">Anual</option>
+              </select>
+            </label>
+          </>
+        ) : null}
       </div>
 
       {!compact ? (
@@ -294,7 +341,7 @@ export const TransactionForm = ({
         ) : null}
         <button
           type="submit"
-          disabled={isSubmitting}
+          disabled={isSubmitting || noCardsAvailable}
           className="rounded-lg bg-primary-600 px-3 py-2 text-sm font-semibold text-white disabled:opacity-70"
         >
           {isSubmitting ? 'Salvando...' : submitLabel}

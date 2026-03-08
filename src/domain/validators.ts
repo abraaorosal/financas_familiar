@@ -10,7 +10,7 @@ const optionalInstallmentNumber = z.preprocess(
   (value) => (value === '' || Number.isNaN(value) ? undefined : value),
   z.number().int().min(2).max(48).optional()
 );
-const optionalStringArray = z.preprocess((value) => {
+const parseCommaSeparatedArray = (value: unknown): string[] | undefined | unknown => {
   if (value == null || value === '') return undefined;
 
   if (Array.isArray(value)) {
@@ -29,27 +29,36 @@ const optionalStringArray = z.preprocess((value) => {
   }
 
   return value;
-}, z.array(z.string().trim()).optional());
+};
+
+const optionalTagsArray = z.preprocess(
+  (value) => parseCommaSeparatedArray(value),
+  z.array(z.string().trim().min(1).max(40)).max(20).optional()
+);
+const optionalAttachmentArray = z.preprocess(
+  (value) => parseCommaSeparatedArray(value),
+  z.array(z.string().trim().min(1).max(2048)).max(10).optional()
+);
 
 export const personSchema = z.object({
   id: entityId.optional(),
-  nome: z.string().trim().min(2, 'Nome obrigatório'),
-  cor: z.string().trim().min(4, 'Cor inválida'),
+  nome: z.string().trim().min(2, 'Nome obrigatório').max(60, 'Nome muito longo'),
+  cor: z.string().trim().min(4, 'Cor inválida').max(30, 'Cor inválida'),
   ativo: z.boolean().default(true),
 });
 
 export const categorySchema = z.object({
   id: entityId.optional(),
-  nome: z.string().trim().min(2, 'Nome obrigatório'),
+  nome: z.string().trim().min(2, 'Nome obrigatório').max(80, 'Nome muito longo'),
   tipo: z.enum(['gasto', 'ganho']),
-  grupo: z.string().trim().min(2, 'Grupo obrigatório'),
-  cor: z.string().trim().optional(),
-  icone: z.string().trim().optional(),
+  grupo: z.string().trim().min(2, 'Grupo obrigatório').max(60, 'Grupo muito longo'),
+  cor: z.string().trim().max(30, 'Cor inválida').optional(),
+  icone: z.string().trim().max(40, 'Ícone inválido').optional(),
 });
 
 export const accountSchema = z.object({
   id: entityId.optional(),
-  nome: z.string().trim().min(2, 'Nome obrigatório'),
+  nome: z.string().trim().min(2, 'Nome obrigatório').max(60, 'Nome muito longo'),
   tipo: z.enum(['conta_corrente', 'dinheiro', 'poupanca', 'investimento']),
   saldoInicialCentavos: z.number().int(),
   pessoaId: optionalEntityId,
@@ -57,8 +66,8 @@ export const accountSchema = z.object({
 
 export const cardSchema = z.object({
   id: entityId.optional(),
-  nome: z.string().trim().min(2, 'Nome obrigatório'),
-  bandeira: z.string().trim().optional(),
+  nome: z.string().trim().min(2, 'Nome obrigatório').max(60, 'Nome muito longo'),
+  bandeira: z.string().trim().max(30, 'Bandeira inválida').optional(),
   pessoaId: entityId,
   limiteTotalCentavos: z.number().int().min(0),
   fechamentoDia: z.number().int().min(1).max(28),
@@ -70,13 +79,13 @@ export const transactionSchema = z
   .object({
     id: entityId.optional(),
     linkedTransactionId: optionalEntityId,
-    data: z.string().min(1, 'Data obrigatória'),
+    data: z.string().regex(/^\d{4}-\d{2}-\d{2}$/, 'Data obrigatória'),
     tipo: z.enum(['gasto', 'ganho']),
     natureza: z.enum(['fixa', 'variavel']),
     pessoaId: entityId,
     valorCentavos: z.number().int().positive('Valor deve ser maior que zero'),
     categoriaId: entityId,
-    descricao: z.string().trim().min(2, 'Descrição obrigatória'),
+    descricao: z.string().trim().min(2, 'Descrição obrigatória').max(140, 'Descrição muito longa'),
     formaPagamento: z.enum(['dinheiro', 'debito', 'pix', 'boleto', 'transferencia', 'cartao_credito']),
     accountId: optionalEntityId,
     cardId: optionalEntityId,
@@ -87,8 +96,8 @@ export const transactionSchema = z
     ),
     recorrente: z.boolean().default(false),
     recorrencia: optionalRecorrencia,
-    tags: optionalStringArray,
-    anexos: optionalStringArray,
+    tags: optionalTagsArray,
+    anexos: optionalAttachmentArray,
   })
   .superRefine((value, ctx) => {
     if (value.formaPagamento === 'cartao_credito' && !value.cardId) {

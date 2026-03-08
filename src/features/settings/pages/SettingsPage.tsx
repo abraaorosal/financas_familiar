@@ -1,5 +1,5 @@
 import { useEffect, useRef, useState, type ChangeEventHandler } from 'react';
-import { format, parseISO } from 'date-fns';
+import { format, isValid, parseISO } from 'date-fns';
 import { Download, RefreshCcw, Upload } from 'lucide-react';
 import { PageHeader } from '@/shared/components/PageHeader';
 import { Modal } from '@/shared/components/Modal';
@@ -33,6 +33,12 @@ export const SettingsPage = () => {
   const lastImport = meta.find((item) => item.key === 'lastImportAt')?.value;
   const lastCloudSyncAt = meta.find((item) => item.key === 'lastCloudSyncAt')?.value;
   const lastCloudPushAt = meta.find((item) => item.key === 'lastCloudPushAt')?.value;
+
+  const formatMetaDate = (value?: string): string => {
+    if (!value) return 'nunca';
+    const parsed = parseISO(value);
+    return isValid(parsed) ? format(parsed, 'dd/MM/yyyy HH:mm') : 'nunca';
+  };
 
   useEffect(() => {
     if (!isConfigured) return;
@@ -73,6 +79,12 @@ export const SettingsPage = () => {
   const handleImportFile: ChangeEventHandler<HTMLInputElement> = async (event) => {
     const file = event.target.files?.[0];
     if (!file) return;
+
+    if (file.size > 5 * 1024 * 1024) {
+      setMessage('Arquivo de backup maior que 5MB. Divida os dados ou use um arquivo menor.');
+      event.target.value = '';
+      return;
+    }
 
     try {
       const text = await file.text();
@@ -210,8 +222,8 @@ export const SettingsPage = () => {
 
             <div className="mb-3 rounded-lg bg-slate-50 p-3 text-xs text-slate-600">
               <p>Status: sincronização automática ativa</p>
-              <p>Última sincronização: {lastCloudSyncAt ? format(parseISO(lastCloudSyncAt), 'dd/MM/yyyy HH:mm') : 'nunca'}</p>
-              <p>Último backup na nuvem: {lastCloudPushAt ? format(parseISO(lastCloudPushAt), 'dd/MM/yyyy HH:mm') : 'nunca'}</p>
+              <p>Última sincronização: {formatMetaDate(lastCloudSyncAt)}</p>
+              <p>Último backup na nuvem: {formatMetaDate(lastCloudPushAt)}</p>
             </div>
           </>
         )}
