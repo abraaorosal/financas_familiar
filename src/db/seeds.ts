@@ -5,7 +5,8 @@ import { defaultCategories } from '@/shared/constants/defaultCategories';
 import { createId } from '@/shared/utils/id';
 import { toISODateOnly, toMonthKey } from '@/shared/utils/date';
 
-export const SEED_VERSION = '1';
+export const AUTO_SEED_VERSION = '2';
+export const DEMO_SEED_VERSION = '1';
 
 interface SeedResult {
   persons: Person[];
@@ -298,12 +299,27 @@ const buildSeedData = (): SeedResult => {
 };
 
 export const seedDatabase = async (): Promise<void> => {
-  const existingSeed = await db.meta.get('seedVersion');
+  const existingSeed = await db.meta.get('autoSeedVersion');
 
-  if (existingSeed?.value === SEED_VERSION) {
+  if (existingSeed?.value === AUTO_SEED_VERSION) {
     return;
   }
 
+  await db.transaction('rw', [db.categories, db.meta], async () => {
+    const categoryCount = await db.categories.count();
+    if (categoryCount === 0) {
+      await db.categories.bulkPut(defaultCategories());
+    }
+
+    await db.meta.put({
+      key: 'autoSeedVersion',
+      value: AUTO_SEED_VERSION,
+      updatedAt: now(),
+    });
+  });
+};
+
+export const forceSeedDatabase = async (): Promise<void> => {
   await db.transaction('rw', [db.persons, db.categories, db.accounts, db.cards, db.transactions, db.budgets, db.meta], async () => {
     await db.persons.clear();
     await db.categories.clear();
@@ -323,13 +339,13 @@ export const seedDatabase = async (): Promise<void> => {
 
     await db.meta.put({
       key: 'seedVersion',
-      value: SEED_VERSION,
+      value: DEMO_SEED_VERSION,
+      updatedAt: now(),
+    });
+    await db.meta.put({
+      key: 'autoSeedVersion',
+      value: AUTO_SEED_VERSION,
       updatedAt: now(),
     });
   });
-};
-
-export const forceSeedDatabase = async (): Promise<void> => {
-  await db.meta.delete('seedVersion');
-  await seedDatabase();
 };

@@ -7,6 +7,41 @@ import type { CloudBackupRow, CloudSyncResult } from './types';
 const CLOUD_BACKUP_TABLE = 'cloud_backups';
 
 const now = (): string => new Date().toISOString();
+const hashString = (value: string): string => {
+  let hash = 5381;
+  for (let index = 0; index < value.length; index += 1) {
+    hash = (hash * 33) ^ value.charCodeAt(index);
+  }
+  return (hash >>> 0).toString(16);
+};
+const createFingerprint = (value: unknown): string => hashString(JSON.stringify(value));
+
+const isFirstCloudSyncAttempt = (payload: Awaited<ReturnType<typeof exportDataBundle>>): boolean => {
+  const metaKeys = new Set(payload.data.meta.map((item) => item.key));
+  return !metaKeys.has('lastCloudPushAt') && !metaKeys.has('lastCloudPullAt') && !metaKeys.has('lastCloudSyncAt');
+};
+
+const isLikelyEmptyLocalData = (payload: Awaited<ReturnType<typeof exportDataBundle>>): boolean => {
+  return (
+    payload.data.persons.length === 0 &&
+    payload.data.accounts.length === 0 &&
+    payload.data.cards.length === 0 &&
+    payload.data.transactions.length === 0 &&
+    payload.data.budgets.length === 0
+  );
+};
+
+const isLikelyLegacyDemoSeed = (payload: Awaited<ReturnType<typeof exportDataBundle>>): boolean => {
+  const peopleNames = new Set(payload.data.persons.map((person) => person.nome.trim().toLowerCase()));
+  const hasDemoPeople = peopleNames.has('pessoa 1') && peopleNames.has('pessoa 2');
+  const hasDemoTransactions = payload.data.transactions.some((transaction) =>
+    ['salário principal', 'projeto freelancer', 'compra do mês', 'abastecimento'].includes(
+      transaction.descricao.trim().toLowerCase()
+    )
+  );
+
+  return hasDemoPeople && hasDemoTransactions;
+};
 
 const ensureConfigured = (): void => {
   if (!isSupabaseConfigured) {
@@ -31,6 +66,18 @@ const trackCloudMeta = async (key: string, value: string): Promise<void> => {
     value,
     updatedAt: now(),
   });
+};
+
+const getMetaValue = (
+  payload: Awaited<ReturnType<typeof exportDataBundle>>,
+  key: string
+): string | undefined => {
+  return payload.data.meta.find((item) => item.key === key)?.value;
+};
+
+const trackFingerprints = async (localFingerprint: string, remoteFingerprint: string): Promise<void> => {
+  await trackCloudMeta('lastCloudLocalFingerprint', localFingerprint);
+  await trackCloudMeta('lastCloudRemoteFingerprint', remoteFingerprint);
 };
 
 export const cloudAuthService = {
@@ -165,41 +212,94 @@ export const cloudSyncService = {
   async syncNow(): Promise<CloudSyncResult> {
     const latestBefore = await cloudBackupService.getLatestBackup();
     const localBeforeMerge = await exportDataBundle();
-    const localBeforeFingerprint = JSON.stringify(localBeforeMerge.data);
+    const localBeforeFingerprint = createFingerprint(localBeforeMerge.data);
     const currentDeviceId = getDeviceId();
     const shouldPullRemote = Boolean(latestBefore && latestBefore.device_id !== currentDeviceId);
-
-    if (
-      shouldPullRemote &&
+    const remoteFingerprint = latestBefore ? createFingerprint(latestBefore.payload.data) : '';
+    const previousLocalFingerprint = getMetaValue(localBeforeMerge, 'lastCloudLocalFingerprint');
+    const previousRemoteFingerprint = getMetaValue(localBeforeMerge, 'lastCloudRemoteFingerprint');
+    const localChangedSinceLastSync = Boolean(
+      previousLocalFingerprint && previousLocalFingerprint !== localBeforeFingerprint
+    );
+    const remoteChangedSinceLastSync = Boolean(
       latestBefore &&
-      JSON.stringify(latestBefore.payload.data) !== localBeforeFingerprint
-    ) {
-      await cloudBackupService.uploadBundle(localBeforeMerge, 'pre-merge-local');
-    }
+      (!previousRemoteFingerprint || previousRemoteFingerprint !== remoteFingerprint)
+    );
+    const shouldReplaceLocalWithRemote =
+      shouldPullRemote &&
+      Boolean(latestBefore) &&
+      isFirstCloudSyncAttempt(localBeforeMerge) &&
+      (isLikelyEmptyLocalData(localBeforeMerge) || isLikelyLegacyDemoSeed(localBeforeMerge));
 
-    if (shouldPullRemote && latestBefore) {
-      await importDataBundle(latestBefore.payload, 'merge');
+    if (shouldPullRemote && latestBefore && shouldReplaceLocalWithRemote) {
+      await importDataBundle(latestBefore.payload, 'overwrite');
       await trackCloudMeta('lastCloudPullAt', now());
-    }
+      await trackCloudMeta('lastCloudSyncAt', now());
+      await trackFingerprints(remoteFingerprint, remoteFingerprint);
 
-    const mergedBundle = await exportDataBundle();
-    const remoteDataFingerprint = latestBefore ? JSON.stringify(latestBefore.payload.data) : '';
-    const localDataFingerprint = JSON.stringify(mergedBundle.data);
-
-    await trackCloudMeta('lastCloudSyncAt', now());
-
-    if (latestBefore && remoteDataFingerprint === localDataFingerprint) {
       return {
-        pulled: shouldPullRemote,
+        pulled: true,
         pushed: false,
         latestRemoteAt: latestBefore.created_at,
       };
     }
 
-    const uploaded = await cloudBackupService.uploadBackup('sync-now');
+    if (latestBefore && shouldPullRemote && remoteChangedSinceLastSync && !localChangedSinceLastSync) {
+      await importDataBundle(latestBefore.payload, 'overwrite');
+      await trackCloudMeta('lastCloudPullAt', now());
+      await trackCloudMeta('lastCloudSyncAt', now());
+      await trackFingerprints(remoteFingerprint, remoteFingerprint);
+
+      return {
+        pulled: true,
+        pushed: false,
+        latestRemoteAt: latestBefore.created_at,
+      };
+    }
+
+    if (latestBefore && shouldPullRemote && remoteChangedSinceLastSync && localChangedSinceLastSync) {
+      await importDataBundle(latestBefore.payload, 'merge');
+      await trackCloudMeta('lastCloudPullAt', now());
+
+      const mergedBundle = await exportDataBundle();
+      const mergedFingerprint = createFingerprint(mergedBundle.data);
+      const uploaded = await cloudBackupService.uploadBundle(mergedBundle, 'sync-merge');
+      await trackCloudMeta('lastCloudSyncAt', now());
+      await trackFingerprints(mergedFingerprint, mergedFingerprint);
+
+      return {
+        pulled: true,
+        pushed: true,
+        latestRemoteAt: latestBefore.created_at,
+        uploadedAt: uploaded.created_at,
+      };
+    }
+
+    if (latestBefore && remoteFingerprint === localBeforeFingerprint) {
+      await trackCloudMeta('lastCloudSyncAt', now());
+      await trackFingerprints(localBeforeFingerprint, remoteFingerprint);
+      return {
+        pulled: false,
+        pushed: false,
+        latestRemoteAt: latestBefore.created_at,
+      };
+    }
+
+    if (!latestBefore && isLikelyEmptyLocalData(localBeforeMerge)) {
+      await trackCloudMeta('lastCloudSyncAt', now());
+      await trackFingerprints(localBeforeFingerprint, localBeforeFingerprint);
+      return {
+        pulled: false,
+        pushed: false,
+      };
+    }
+
+    const uploaded = await cloudBackupService.uploadBundle(localBeforeMerge, 'sync-now');
+    await trackCloudMeta('lastCloudSyncAt', now());
+    await trackFingerprints(localBeforeFingerprint, localBeforeFingerprint);
 
     return {
-      pulled: shouldPullRemote,
+      pulled: false,
       pushed: true,
       latestRemoteAt: latestBefore?.created_at,
       uploadedAt: uploaded.created_at,

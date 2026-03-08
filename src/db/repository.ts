@@ -21,6 +21,7 @@ import {
 } from '@/domain/validators';
 import { createId } from '@/shared/utils/id';
 import { splitInstallmentsInCents } from '@/shared/utils/installments';
+import { AUTO_SEED_VERSION } from './seeds';
 
 const now = (): string => new Date().toISOString();
 
@@ -103,7 +104,12 @@ export const clearAllData = async (): Promise<void> => {
     await db.meta.clear();
     await db.meta.put({
       key: 'seedVersion',
-      value: '1',
+      value: 'cleared',
+      updatedAt: now(),
+    });
+    await db.meta.put({
+      key: 'autoSeedVersion',
+      value: AUTO_SEED_VERSION,
       updatedAt: now(),
     });
   });
