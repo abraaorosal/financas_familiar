@@ -46,6 +46,15 @@ export const TransactionForm = ({
   onSubmit,
   onCancel,
 }: TransactionFormProps) => {
+  const parseTags = (value?: string): string[] | undefined => {
+    if (!value) return undefined;
+    const parsed = value
+      .split(',')
+      .map((tag) => tag.trim())
+      .filter(Boolean);
+    return parsed.length > 0 ? parsed : undefined;
+  };
+
   const defaultValues: TransactionFormValues = {
     data: initialData?.data ?? toISODateOnly(new Date()),
     tipo: initialData?.tipo ?? 'gasto',
@@ -101,10 +110,7 @@ export const TransactionForm = ({
           : undefined,
       recorrente: values.recorrente,
       recorrencia: values.recorrente ? values.recorrencia : undefined,
-      tags: values.tags
-        ?.split(',')
-        .map((tag) => tag.trim())
-        .filter(Boolean),
+      tags: parseTags(values.tags),
     };
 
     await onSubmit(payload);

@@ -10,6 +10,26 @@ const optionalInstallmentNumber = z.preprocess(
   (value) => (value === '' || Number.isNaN(value) ? undefined : value),
   z.number().int().min(2).max(48).optional()
 );
+const optionalStringArray = z.preprocess((value) => {
+  if (value == null || value === '') return undefined;
+
+  if (Array.isArray(value)) {
+    const parsed = value
+      .map((item) => String(item).trim())
+      .filter(Boolean);
+    return parsed.length > 0 ? parsed : undefined;
+  }
+
+  if (typeof value === 'string') {
+    const parsed = value
+      .split(',')
+      .map((item) => item.trim())
+      .filter(Boolean);
+    return parsed.length > 0 ? parsed : undefined;
+  }
+
+  return value;
+}, z.array(z.string().trim()).optional());
 
 export const personSchema = z.object({
   id: entityId.optional(),
@@ -67,8 +87,8 @@ export const transactionSchema = z
     ),
     recorrente: z.boolean().default(false),
     recorrencia: optionalRecorrencia,
-    tags: z.array(z.string().trim()).optional(),
-    anexos: z.array(z.string().trim()).optional(),
+    tags: optionalStringArray,
+    anexos: optionalStringArray,
   })
   .superRefine((value, ctx) => {
     if (value.formaPagamento === 'cartao_credito' && !value.cardId) {
